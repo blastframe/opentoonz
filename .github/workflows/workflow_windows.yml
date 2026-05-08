@@ -1,43 +1,47 @@
 name: Windows Build
 
+permissions:
+  contents: read
+  pull-requests: write
+
 on:
   push:
     branches:
-      - master  # Specify branches where the workflow should run
+      - master # Specify branches where the workflow should run
     paths:
-      - '**/*'                                    # Include all files in the repository
-      - '!appveyor.yml'                           # Ignore changes in AppVeyor
-      - '!README.md'                              # Exclude README
-      - '!doc/**'                                 # Exclude documentation
-      - '!**/.github/**'                          # Exclude everything in .github folder
-      - '.github/workflows/workflow_windows.yml'  # Include Windows workflow file
+      - "**/*" # Include all files in the repository
+      - "!appveyor.yml" # Ignore changes in AppVeyor
+      - "!README.md" # Exclude README
+      - "!doc/**" # Exclude documentation
+      - "!**/.github/**" # Exclude everything in .github folder
+      - ".github/workflows/workflow_windows.yml" # Include Windows workflow file
   pull_request:
     paths:
-      - '**/*'
-      - '!appveyor.yml'
-      - '!README.md'
-      - '!doc/**'
-      - '!**/.github/**'
-      - '.github/workflows/workflow_windows.yml'
+      - "**/*"
+      - "!appveyor.yml"
+      - "!README.md"
+      - "!doc/**"
+      - "!**/.github/**"
+      - ".github/workflows/workflow_windows.yml"
 
 jobs:
   Windows:
     runs-on: windows-2025
     env:
       # QT related variable
-      QT_PATH: ${{ github.workspace }}\thirdparty\qt\5.15.2_wintab\msvc2019_64  # Path to custom Qt
+      QT_PATH: ${{ github.workspace }}\thirdparty\qt\5.15.2_wintab\msvc2019_64 # Path to custom Qt
 
       # Visual Studio related variables
-      MSVCVERSION: "Visual Studio 17 2022"  # Visual Studio version
-      
-      # Boost-related variables      
-      BOOST_TOOLSET: "14.3"                 # Boost MSVC Toolset version
-      BOOST_VERSION: "1.87.0"               # Boost version
-      BOOST_ROOT: C:\local\boost_1_87_0     # Path to Boost library root
-      
-      # OpenCV-related variables      
-      OPENCV_VERSION: "4.13.0"              # OpenCV version
-      OpenCV_DIR: C:\tools\opencv\build     # Path to OpenCV
+      MSVCVERSION: "Visual Studio 17 2022" # Visual Studio version
+
+      # Boost-related variables
+      BOOST_TOOLSET: "14.3" # Boost MSVC Toolset version
+      BOOST_VERSION: "1.87.0" # Boost version
+      BOOST_ROOT: C:\local\boost_1_87_0 # Path to Boost library root
+
+      # OpenCV-related variables
+      OPENCV_VERSION: "4.13.0" # OpenCV version
+      OpenCV_DIR: C:\tools\opencv\build # Path to OpenCV
 
     steps:
       - uses: actions/checkout@v6
@@ -80,7 +84,7 @@ jobs:
           @echo on
           curl -fsSL -o thirdparty-libs.zip https://github.com/andeon/opentoonz-thirdparty-libs/releases/download/prebuilt-libs-v1/thirdparty-libs.zip
           7z x -y thirdparty-libs.zip
-        shell: cmd    
+        shell: cmd
 
       # Add msbuild to PATH for build process
       - name: Add msbuild to PATH
@@ -116,7 +120,7 @@ jobs:
         run: |
           @echo on
           cd toonz\build
-          
+
           REM Create Opentoonz directory and copy files from RelWithDebInfo
           mkdir Opentoonz
           copy /Y RelWithDebInfo\*.* Opentoonz\
@@ -127,16 +131,16 @@ jobs:
           copy /Y ..\..\thirdparty\libmypaint\dist\64\libintl-8.dll Opentoonz
           copy /Y ..\..\thirdparty\libmypaint\dist\64\libjson-c-2.dll Opentoonz
           copy /Y ..\..\thirdparty\libmypaint\dist\64\libmypaint-1-4-0.dll Opentoonz
-          
+
           REM Copy OpenCV DLL (IMPORTANT: Update path/filename when upgrading OpenCV version)
           copy /Y "C:\tools\opencv\build\x64\vc16\bin\opencv_world4130.dll" Opentoonz
-          
+
           REM Deploy Qt dependencies
           "%QT_PATH%\bin\windeployqt.exe" Opentoonz\Opentoonz.exe --opengl
-          
+
           del /Q Opentoonz\*.pdb  REM Remove .pdb files
           del /Q Opentoonz\vc_redist.x64.exe REM Remove vc_redist.x64.exe file
-          
+
           REM Create portablestuff directory and copy stuff folder
           mkdir Opentoonz\portablestuff
           xcopy /Y /E /I ..\..\stuff .\Opentoonz\portablestuff
