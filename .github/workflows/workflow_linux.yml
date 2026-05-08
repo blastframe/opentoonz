@@ -37,6 +37,8 @@ jobs:
             cxx: clang++
     steps:
       - uses: actions/checkout@v6
+        with:
+          lfs: false
 
       - name: Install libraries
         run: |

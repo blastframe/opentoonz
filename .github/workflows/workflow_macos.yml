@@ -35,6 +35,8 @@ jobs:
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v6
+        with:
+          lfs: false
 
       - name: Clean Python symlinks
         run: |
