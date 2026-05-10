@@ -88,7 +88,7 @@ import Testing
 
 
 @Test func emptyPaletteFallsBackToDefaultStyle() {
-    var document = VectorDocument(palette: [])
+    var document = VectorDocument()
     document.palette.removeAll()
 
     #expect(document.selectedStyle.name == "Ink")

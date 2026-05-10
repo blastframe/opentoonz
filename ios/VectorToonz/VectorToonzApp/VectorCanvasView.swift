@@ -229,6 +229,7 @@ private final class TouchCaptureView: UIView {
         guard let touch else { return nil }
         let location = touch.location(in: self)
         let pressure = touch.maximumPossibleForce > 0 ? Double(touch.force / touch.maximumPossibleForce) : 1
-        return VectorPoint(x: location.x, y: location.y, pressure: max(0.1, pressure))
+        let clampedPressure = max(0.1, min(pressure, 2.0))
+        return VectorPoint(x: location.x, y: location.y, pressure: clampedPressure)
     }
 }
