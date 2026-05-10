@@ -44,6 +44,21 @@ final class DocumentStore: ObservableObject {
         save()
     }
 
+    func addShape(from start: VectorPoint, to end: VectorPoint) {
+        document.addRectangle(from: start, to: end)
+        save()
+    }
+
+    func addTextPlaceholder(at point: VectorPoint) {
+        document.addTextPlaceholder(at: point)
+        save()
+    }
+
+    func applySelectedTool(at point: VectorPoint, from previousPoint: VectorPoint?) {
+        document.apply(tool: selectedTool, at: point, from: previousPoint)
+        save()
+    }
+
     func load() {
         guard let data = try? Data(contentsOf: documentURL),
               let decoded = try? JSONDecoder().decode(VectorDocument.self, from: data) else { return }

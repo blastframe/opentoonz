@@ -1,37 +1,88 @@
 import Foundation
 
 public enum VectorTool: String, CaseIterable, Codable, Identifiable, Sendable {
-    case brush
-    case eraser
+    case animate
     case selection
-    case controlPoint
-    case fill
+    case brush
     case geometric
+    case type
+    case fill
+    case eraser
+    case tape
     case stylePicker
+    case rgbPicker
+    case controlPoint
+    case pinch
+    case pump
+    case magnet
+    case bender
+    case iron
+    case cutter
+    case hook
+    case zoom
+    case hand
+    case rotate
 
     public var id: String { rawValue }
 
     public var displayName: String {
         switch self {
-        case .brush: "Brush"
-        case .eraser: "Eraser"
+        case .animate: "Animate"
         case .selection: "Select"
-        case .controlPoint: "Points"
-        case .fill: "Fill"
+        case .brush: "Brush"
         case .geometric: "Shape"
-        case .stylePicker: "Picker"
+        case .type: "Type"
+        case .fill: "Fill"
+        case .eraser: "Eraser"
+        case .tape: "Tape"
+        case .stylePicker: "Style"
+        case .rgbPicker: "RGB"
+        case .controlPoint: "Points"
+        case .pinch: "Pinch"
+        case .pump: "Pump"
+        case .magnet: "Magnet"
+        case .bender: "Bender"
+        case .iron: "Iron"
+        case .cutter: "Cutter"
+        case .hook: "Hook"
+        case .zoom: "Zoom"
+        case .hand: "Hand"
+        case .rotate: "Rotate"
         }
     }
 
     public var systemImageName: String {
         switch self {
-        case .brush: "pencil.tip"
-        case .eraser: "eraser"
+        case .animate: "arrow.up.left.and.arrow.down.right"
         case .selection: "cursorarrow.motionlines"
-        case .controlPoint: "point.topleft.down.curvedto.point.bottomright.up"
-        case .fill: "paintpalette"
+        case .brush: "pencil.tip"
         case .geometric: "square.on.circle"
-        case .stylePicker: "eyedropper"
+        case .type: "textformat"
+        case .fill: "paintpalette"
+        case .eraser: "eraser"
+        case .tape: "link"
+        case .stylePicker: "eyedropper.halffull"
+        case .rgbPicker: "eyedropper"
+        case .controlPoint: "point.topleft.down.curvedto.point.bottomright.up"
+        case .pinch: "arrow.down.right.and.arrow.up.left"
+        case .pump: "arrow.up.and.down.and.arrow.left.and.right"
+        case .magnet: "magnet"
+        case .bender: "alternatingcurrent"
+        case .iron: "scribble.variable"
+        case .cutter: "scissors"
+        case .hook: "paperclip"
+        case .zoom: "magnifyingglass"
+        case .hand: "hand.draw"
+        case .rotate: "rotate.3d"
+        }
+    }
+
+    public var editsExistingVectors: Bool {
+        switch self {
+        case .eraser, .tape, .fill, .controlPoint, .pinch, .pump, .magnet, .bender, .iron, .cutter:
+            true
+        case .animate, .selection, .brush, .geometric, .type, .stylePicker, .rgbPicker, .hook, .zoom, .hand, .rotate:
+            false
         }
     }
 }
@@ -45,6 +96,22 @@ public struct VectorPoint: Codable, Hashable, Sendable {
         self.x = x
         self.y = y
         self.pressure = pressure
+    }
+
+    public func distance(to other: VectorPoint) -> Double {
+        hypot(x - other.x, y - other.y)
+    }
+
+    public func translated(dx: Double, dy: Double) -> VectorPoint {
+        VectorPoint(x: x + dx, y: y + dy, pressure: pressure)
+    }
+
+    public func moved(toward target: VectorPoint, amount: Double) -> VectorPoint {
+        VectorPoint(
+            x: x + (target.x - x) * amount,
+            y: y + (target.y - y) * amount,
+            pressure: pressure
+        )
     }
 }
 
@@ -209,6 +276,80 @@ public struct VectorDocument: Identifiable, Codable, Hashable, Sendable {
         currentFrameIndex = nextIndex
     }
 
+    public mutating func apply(
+        tool: VectorTool,
+        at point: VectorPoint,
+        from previousPoint: VectorPoint? = nil,
+        radius: Double = 72,
+        intensity: Double = 1
+    ) {
+        guard tool.editsExistingVectors else { return }
+        ensureFrame(layerID: selectedLayerID, frameIndex: currentFrameIndex)
+        guard let layerIndex = layers.firstIndex(where: { $0.id == selectedLayerID }),
+              let frameIndexInLayer = layers[layerIndex].frames.firstIndex(where: { $0.index == currentFrameIndex }) else { return }
+
+        switch tool {
+        case .eraser:
+            eraseVectors(at: point, radius: radius, layerIndex: layerIndex, frameIndex: frameIndexInLayer)
+        case .tape:
+            tapeOpenVectorEnds(near: point, radius: radius, layerIndex: layerIndex, frameIndex: frameIndexInLayer)
+        case .fill:
+            closeNearestStroke(near: point, radius: radius, layerIndex: layerIndex, frameIndex: frameIndexInLayer)
+        case .controlPoint:
+            moveNearestControlPoint(to: point, from: previousPoint, radius: radius, layerIndex: layerIndex, frameIndex: frameIndexInLayer)
+        case .pinch:
+            mapCurrentFrame(layerIndex: layerIndex, frameIndex: frameIndexInLayer) { vectorPoint in
+                let falloff = Self.influence(of: point, on: vectorPoint, radius: radius)
+                return vectorPoint.moved(toward: point, amount: 0.18 * intensity * falloff)
+            }
+        case .pump:
+            mapCurrentFrame(layerIndex: layerIndex, frameIndex: frameIndexInLayer) { vectorPoint in
+                let falloff = Self.influence(of: point, on: vectorPoint, radius: radius)
+                var changed = vectorPoint
+                changed.pressure = max(0.15, min(4.0, changed.pressure + 0.45 * intensity * falloff))
+                return changed
+            }
+        case .magnet:
+            let drag = dragDelta(to: point, from: previousPoint)
+            mapCurrentFrame(layerIndex: layerIndex, frameIndex: frameIndexInLayer) { vectorPoint in
+                let falloff = Self.influence(of: point, on: vectorPoint, radius: radius)
+                return vectorPoint.translated(dx: drag.dx * falloff, dy: drag.dy * falloff)
+            }
+        case .bender:
+            let drag = dragDelta(to: point, from: previousPoint)
+            mapCurrentFrame(layerIndex: layerIndex, frameIndex: frameIndexInLayer) { vectorPoint in
+                let falloff = Self.influence(of: point, on: vectorPoint, radius: radius)
+                let phase = (vectorPoint.x - point.x) / max(radius, 1) * Double.pi
+                return vectorPoint.translated(dx: drag.dx * 0.25 * falloff, dy: sin(phase) * drag.dy * falloff)
+            }
+        case .iron:
+            smoothVectors(near: point, radius: radius, strength: 0.55 * intensity, layerIndex: layerIndex, frameIndex: frameIndexInLayer)
+        case .cutter:
+            cutNearestStroke(near: point, radius: radius, layerIndex: layerIndex, frameIndex: frameIndexInLayer)
+        case .animate, .selection, .brush, .geometric, .type, .stylePicker, .rgbPicker, .hook, .zoom, .hand, .rotate:
+            break
+        }
+    }
+
+    public mutating func addRectangle(from start: VectorPoint, to end: VectorPoint) {
+        let points = [
+            start,
+            VectorPoint(x: end.x, y: start.y, pressure: start.pressure),
+            end,
+            VectorPoint(x: start.x, y: end.y, pressure: end.pressure),
+            start
+        ]
+        addStroke(VectorStroke(styleID: selectedStyleID, points: points, isClosed: true))
+    }
+
+    public mutating func addTextPlaceholder(at point: VectorPoint) {
+        let width = 96.0
+        let height = 36.0
+        let start = VectorPoint(x: point.x, y: point.y, pressure: point.pressure)
+        let end = VectorPoint(x: point.x + width, y: point.y + height, pressure: point.pressure)
+        addRectangle(from: start, to: end)
+    }
+
     public mutating func ensureFrame(layerID: UUID, frameIndex: Int) {
         guard let layerIndex = layers.firstIndex(where: { $0.id == layerID }) else { return }
         if !layers[layerIndex].frames.contains(where: { $0.index == frameIndex }) {
@@ -219,5 +360,129 @@ public struct VectorDocument: Identifiable, Codable, Hashable, Sendable {
 
     public func frame(layerID: UUID, index: Int) -> VectorFrame? {
         layers.first { $0.id == layerID }?.frames.first { $0.index == index }
+    }
+
+    private static func influence(of center: VectorPoint, on point: VectorPoint, radius: Double) -> Double {
+        guard radius > 0 else { return 0 }
+        let distance = center.distance(to: point)
+        guard distance <= radius else { return 0 }
+        let normalized = 1 - distance / radius
+        return normalized * normalized
+    }
+
+    private func dragDelta(to point: VectorPoint, from previousPoint: VectorPoint?) -> (dx: Double, dy: Double) {
+        guard let previousPoint else { return (0, 0) }
+        return (point.x - previousPoint.x, point.y - previousPoint.y)
+    }
+
+    private mutating func mapCurrentFrame(
+        layerIndex: Int,
+        frameIndex: Int,
+        transform: (VectorPoint) -> VectorPoint
+    ) {
+        for strokeIndex in layers[layerIndex].frames[frameIndex].strokes.indices {
+            layers[layerIndex].frames[frameIndex].strokes[strokeIndex].points = layers[layerIndex].frames[frameIndex].strokes[strokeIndex].points.map(transform)
+        }
+    }
+
+    private mutating func eraseVectors(at point: VectorPoint, radius: Double, layerIndex: Int, frameIndex: Int) {
+        for strokeIndex in layers[layerIndex].frames[frameIndex].strokes.indices {
+            layers[layerIndex].frames[frameIndex].strokes[strokeIndex].points.removeAll { $0.distance(to: point) <= radius * 0.35 }
+        }
+        layers[layerIndex].frames[frameIndex].strokes.removeAll { $0.points.count < 2 }
+    }
+
+    private mutating func closeNearestStroke(near point: VectorPoint, radius: Double, layerIndex: Int, frameIndex: Int) {
+        guard let strokeIndex = nearestStrokeIndex(near: point, radius: radius, layerIndex: layerIndex, frameIndex: frameIndex) else { return }
+        layers[layerIndex].frames[frameIndex].strokes[strokeIndex].isClosed = true
+    }
+
+    private mutating func moveNearestControlPoint(to point: VectorPoint, from previousPoint: VectorPoint?, radius: Double, layerIndex: Int, frameIndex: Int) {
+        let target = previousPoint ?? point
+        guard let nearest = nearestPointIndex(near: target, radius: radius, layerIndex: layerIndex, frameIndex: frameIndex) else { return }
+        layers[layerIndex].frames[frameIndex].strokes[nearest.strokeIndex].points[nearest.pointIndex] = point
+    }
+
+    private mutating func smoothVectors(near point: VectorPoint, radius: Double, strength: Double, layerIndex: Int, frameIndex: Int) {
+        let originalStrokes = layers[layerIndex].frames[frameIndex].strokes
+        for strokeIndex in originalStrokes.indices {
+            let points = originalStrokes[strokeIndex].points
+            guard points.count > 2 else { continue }
+            for pointIndex in points.indices.dropFirst().dropLast() {
+                let current = points[pointIndex]
+                let falloff = Self.influence(of: point, on: current, radius: radius)
+                guard falloff > 0 else { continue }
+                let previous = points[pointIndex - 1]
+                let next = points[pointIndex + 1]
+                let average = VectorPoint(
+                    x: (previous.x + next.x) / 2,
+                    y: (previous.y + next.y) / 2,
+                    pressure: (previous.pressure + current.pressure + next.pressure) / 3
+                )
+                layers[layerIndex].frames[frameIndex].strokes[strokeIndex].points[pointIndex] = current.moved(toward: average, amount: min(1, strength * falloff))
+            }
+        }
+    }
+
+    private mutating func cutNearestStroke(near point: VectorPoint, radius: Double, layerIndex: Int, frameIndex: Int) {
+        guard let nearest = nearestPointIndex(near: point, radius: radius, layerIndex: layerIndex, frameIndex: frameIndex) else { return }
+        let stroke = layers[layerIndex].frames[frameIndex].strokes[nearest.strokeIndex]
+        guard nearest.pointIndex > 0, nearest.pointIndex < stroke.points.count - 1 else { return }
+        let firstPoints = Array(stroke.points[...nearest.pointIndex])
+        let secondPoints = Array(stroke.points[nearest.pointIndex...])
+        layers[layerIndex].frames[frameIndex].strokes[nearest.strokeIndex] = VectorStroke(styleID: stroke.styleID, points: firstPoints, isClosed: false)
+        layers[layerIndex].frames[frameIndex].strokes.insert(VectorStroke(styleID: stroke.styleID, points: secondPoints, isClosed: false), at: nearest.strokeIndex + 1)
+    }
+
+    private mutating func tapeOpenVectorEnds(near point: VectorPoint, radius: Double, layerIndex: Int, frameIndex: Int) {
+        let frame = layers[layerIndex].frames[frameIndex]
+        var candidates: [(strokeIndex: Int, isStart: Bool, point: VectorPoint)] = []
+        for strokeIndex in frame.strokes.indices {
+            let stroke = frame.strokes[strokeIndex]
+            guard !stroke.isClosed, let first = stroke.points.first, let last = stroke.points.last else { continue }
+            if first.distance(to: point) <= radius { candidates.append((strokeIndex, true, first)) }
+            if last.distance(to: point) <= radius { candidates.append((strokeIndex, false, last)) }
+        }
+        guard candidates.count >= 2 else { return }
+        let pair = candidates.sorted { $0.point.distance(to: point) < $1.point.distance(to: point) }.prefix(2)
+        let first = pair[pair.startIndex]
+        let second = pair[pair.index(after: pair.startIndex)]
+        guard first.strokeIndex != second.strokeIndex else { return }
+        var firstStroke = frame.strokes[first.strokeIndex]
+        var secondStroke = frame.strokes[second.strokeIndex]
+        if first.isStart { firstStroke.points.reverse() }
+        if !second.isStart { secondStroke.points.reverse() }
+        firstStroke.points.append(contentsOf: secondStroke.points)
+        let removeIndex = max(first.strokeIndex, second.strokeIndex)
+        let replaceIndex = min(first.strokeIndex, second.strokeIndex)
+        layers[layerIndex].frames[frameIndex].strokes[replaceIndex] = firstStroke
+        layers[layerIndex].frames[frameIndex].strokes.remove(at: removeIndex)
+    }
+
+    private func nearestStrokeIndex(near point: VectorPoint, radius: Double, layerIndex: Int, frameIndex: Int) -> Int? {
+        layers[layerIndex].frames[frameIndex].strokes.indices.min { left, right in
+            distance(from: point, to: layers[layerIndex].frames[frameIndex].strokes[left]) < distance(from: point, to: layers[layerIndex].frames[frameIndex].strokes[right])
+        }.flatMap { index in
+            distance(from: point, to: layers[layerIndex].frames[frameIndex].strokes[index]) <= radius ? index : nil
+        }
+    }
+
+    private func nearestPointIndex(near point: VectorPoint, radius: Double, layerIndex: Int, frameIndex: Int) -> (strokeIndex: Int, pointIndex: Int)? {
+        var best: (strokeIndex: Int, pointIndex: Int, distance: Double)?
+        for strokeIndex in layers[layerIndex].frames[frameIndex].strokes.indices {
+            let stroke = layers[layerIndex].frames[frameIndex].strokes[strokeIndex]
+            for pointIndex in stroke.points.indices {
+                let distance = stroke.points[pointIndex].distance(to: point)
+                if distance <= radius, best == nil || distance < best!.distance {
+                    best = (strokeIndex, pointIndex, distance)
+                }
+            }
+        }
+        guard let best else { return nil }
+        return (best.strokeIndex, best.pointIndex)
+    }
+
+    private func distance(from point: VectorPoint, to stroke: VectorStroke) -> Double {
+        stroke.points.map { $0.distance(to: point) }.min() ?? .infinity
     }
 }
