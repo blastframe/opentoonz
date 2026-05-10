@@ -189,6 +189,13 @@ public struct VectorLayer: Identifiable, Codable, Hashable, Sendable {
 
 public struct VectorDocument: Identifiable, Codable, Hashable, Sendable {
     public static let fallbackStyle = VectorStyle(name: "Ink", red: 0.05, green: 0.05, blue: 0.08, width: 5.0)
+    private static let minimumStrokePressure = 0.15
+    private static let maximumStrokePressure = 4.0
+    private static let pumpPressureIncrement = 0.45
+    private static let pinchMovementStrength = 0.18
+    private static let benderHorizontalTranslationFactor = 0.25
+    private static let ironSmoothingStrength = 0.55
+    private static let eraserRadiusScale = 0.35
 
     public var id: UUID
     public var title: String
@@ -306,13 +313,13 @@ public struct VectorDocument: Identifiable, Codable, Hashable, Sendable {
         case .pinch:
             mapCurrentFrame(layerIndex: layerIndex, frameIndex: frameIndexInLayer) { vectorPoint in
                 let falloff = Self.influence(of: point, on: vectorPoint, radius: radius)
-                return vectorPoint.moved(toward: point, amount: 0.18 * intensity * falloff)
+                return vectorPoint.moved(toward: point, amount: Self.pinchMovementStrength * intensity * falloff)
             }
         case .pump:
             mapCurrentFrame(layerIndex: layerIndex, frameIndex: frameIndexInLayer) { vectorPoint in
                 let falloff = Self.influence(of: point, on: vectorPoint, radius: radius)
                 var changed = vectorPoint
-                changed.pressure = max(0.15, min(4.0, changed.pressure + 0.45 * intensity * falloff))
+                changed.pressure = max(Self.minimumStrokePressure, min(Self.maximumStrokePressure, changed.pressure + Self.pumpPressureIncrement * intensity * falloff))
                 return changed
             }
         case .magnet:
@@ -326,10 +333,10 @@ public struct VectorDocument: Identifiable, Codable, Hashable, Sendable {
             mapCurrentFrame(layerIndex: layerIndex, frameIndex: frameIndexInLayer) { vectorPoint in
                 let falloff = Self.influence(of: point, on: vectorPoint, radius: radius)
                 let phase = (vectorPoint.x - point.x) / max(radius, 1) * Double.pi
-                return vectorPoint.translated(dx: drag.dx * 0.25 * falloff, dy: sin(phase) * drag.dy * falloff)
+                return vectorPoint.translated(dx: drag.dx * Self.benderHorizontalTranslationFactor * falloff, dy: sin(phase) * drag.dy * falloff)
             }
         case .iron:
-            smoothVectors(near: point, radius: radius, strength: 0.55 * intensity, layerIndex: layerIndex, frameIndex: frameIndexInLayer)
+            smoothVectors(near: point, radius: radius, strength: Self.ironSmoothingStrength * intensity, layerIndex: layerIndex, frameIndex: frameIndexInLayer)
         case .cutter:
             cutNearestStroke(near: point, radius: radius, layerIndex: layerIndex, frameIndex: frameIndexInLayer)
         case .animate, .selection, .brush, .geometric, .type, .stylePicker, .rgbPicker, .hook, .zoom, .hand, .rotate:
@@ -393,7 +400,7 @@ public struct VectorDocument: Identifiable, Codable, Hashable, Sendable {
 
     private mutating func eraseVectors(at point: VectorPoint, radius: Double, layerIndex: Int, frameIndex: Int) {
         for strokeIndex in layers[layerIndex].frames[frameIndex].strokes.indices {
-            layers[layerIndex].frames[frameIndex].strokes[strokeIndex].points.removeAll { $0.distance(to: point) <= radius * 0.35 }
+            layers[layerIndex].frames[frameIndex].strokes[strokeIndex].points.removeAll { $0.distance(to: point) <= radius * Self.eraserRadiusScale }
         }
         layers[layerIndex].frames[frameIndex].strokes.removeAll { $0.points.count < 2 }
     }

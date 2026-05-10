@@ -197,6 +197,9 @@ private struct DrawingTouchOverlay: UIViewRepresentable {
 }
 
 private final class TouchCaptureView: UIView {
+    private static let minimumPressure = 0.1
+    private static let maximumPressure = 2.0
+
     struct Handlers {
         var onBegan: (VectorPoint) -> Void
         var onMoved: (VectorPoint) -> Void
@@ -229,7 +232,7 @@ private final class TouchCaptureView: UIView {
         guard let touch else { return nil }
         let location = touch.location(in: self)
         let pressure = touch.maximumPossibleForce > 0 ? Double(touch.force / touch.maximumPossibleForce) : 1
-        let clampedPressure = max(0.1, min(pressure, 2.0))
+        let clampedPressure = max(Self.minimumPressure, min(pressure, Self.maximumPressure))
         return VectorPoint(x: location.x, y: location.y, pressure: clampedPressure)
     }
 }
