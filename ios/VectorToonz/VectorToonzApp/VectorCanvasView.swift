@@ -67,7 +67,7 @@ struct VectorCanvasView: View {
     private var helpText: String {
         switch store.selectedTool {
         case .brush: "Apple Pencil or touch draws pressure-aware vector strokes"
-        case .geometric: "Drag to create a vector rectangle; additional geometric shapes can build on the same tool"
+        case .geometric: "Drag to create a vector rectangle"
         case .type: "Tap to place a vector text placeholder"
         case .pump: "Drag over vectors to pump stroke thickness"
         case .magnet: "Drag near vectors to magnetically deform them"

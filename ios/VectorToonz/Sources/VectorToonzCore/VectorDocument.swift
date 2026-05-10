@@ -188,6 +188,8 @@ public struct VectorLayer: Identifiable, Codable, Hashable, Sendable {
 }
 
 public struct VectorDocument: Identifiable, Codable, Hashable, Sendable {
+    public static let fallbackStyle = VectorStyle(name: "Ink", red: 0.05, green: 0.05, blue: 0.08, width: 5.0)
+
     public var id: UUID
     public var title: String
     public var frameRate: Int
@@ -207,19 +209,23 @@ public struct VectorDocument: Identifiable, Codable, Hashable, Sendable {
         layers: [VectorLayer]? = nil,
         palette: [VectorStyle]? = nil
     ) {
-        let defaultStyle = VectorStyle(name: "Ink", red: 0.05, green: 0.05, blue: 0.08, width: 5.0)
-        let styleList = palette ?? [
-            defaultStyle,
-            VectorStyle(name: "Blue", red: 0.10, green: 0.38, blue: 0.90, width: 5.0),
-            VectorStyle(name: "Fill", red: 1.00, green: 0.76, blue: 0.20, width: 2.0)
-        ]
+        let styleList: [VectorStyle]
+        if let palette, !palette.isEmpty {
+            styleList = palette
+        } else {
+            styleList = [
+                Self.fallbackStyle,
+                VectorStyle(name: "Blue", red: 0.10, green: 0.38, blue: 0.90, width: 5.0),
+                VectorStyle(name: "Fill", red: 1.00, green: 0.76, blue: 0.20, width: 2.0)
+            ]
+        }
         let layerID = selectedLayerID ?? UUID()
         self.id = id
         self.title = title
         self.frameRate = frameRate
         self.currentFrameIndex = currentFrameIndex
         self.selectedLayerID = layerID
-        self.selectedStyleID = selectedStyleID ?? styleList[0].id
+        self.selectedStyleID = selectedStyleID ?? styleList.first?.id ?? Self.fallbackStyle.id
         self.layers = layers ?? [VectorLayer(id: layerID, name: "Vector Layer 1", frames: [VectorFrame(index: 0)])]
         self.palette = styleList
     }
@@ -229,7 +235,7 @@ public struct VectorDocument: Identifiable, Codable, Hashable, Sendable {
     }
 
     public var selectedStyle: VectorStyle {
-        palette.first { $0.id == selectedStyleID } ?? palette[0]
+        palette.first { $0.id == selectedStyleID } ?? palette.first ?? Self.fallbackStyle
     }
 
     public mutating func addLayer(named name: String? = nil) {

@@ -85,3 +85,11 @@ import Testing
     let strokes = try #require(document.frame(layerID: document.selectedLayerID, index: 0)?.strokes)
     #expect(strokes.count == 2)
 }
+
+
+@Test func emptyPaletteFallsBackToDefaultStyle() {
+    var document = VectorDocument(palette: [])
+    document.palette.removeAll()
+
+    #expect(document.selectedStyle.name == "Ink")
+}
