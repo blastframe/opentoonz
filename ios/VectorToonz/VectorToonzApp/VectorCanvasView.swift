@@ -49,7 +49,7 @@ struct VectorCanvasView: View {
             .shadow(radius: 20, y: 10)
             .scaleEffect(store.canvasScale * magnification)
             .rotationEffect(store.canvasRotation + rotation)
-            .offset(width: store.canvasOffset.width + dragOffset.width, height: store.canvasOffset.height + dragOffset.height)
+            .offset(x: store.canvasOffset.width + dragOffset.width, y: store.canvasOffset.height + dragOffset.height)
             .simultaneousGesture(navigationGesture)
             .padding(24)
         }
