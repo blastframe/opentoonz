@@ -2,6 +2,8 @@ import SwiftUI
 import UIKit
 
 struct VectorCanvasView: View {
+    private let minCanvasScale: CGFloat = 0.35
+    private let maxCanvasScale: CGFloat = 4.0
     @EnvironmentObject private var store: DocumentStore
     @State private var inProgressPoints: [VectorPoint] = []
     @State private var toolStartPoint: VectorPoint?
@@ -65,7 +67,7 @@ struct VectorCanvasView: View {
     private var helpText: String {
         switch store.selectedTool {
         case .brush: "Apple Pencil or touch draws pressure-aware vector strokes"
-        case .geometric: "Drag to create a vector rectangle"
+        case .geometric: "Drag to create a vector rectangle; additional geometric shapes can build on the same tool"
         case .type: "Tap to place a vector text placeholder"
         case .pump: "Drag over vectors to pump stroke thickness"
         case .magnet: "Drag near vectors to magnetically deform them"
@@ -86,7 +88,7 @@ struct VectorCanvasView: View {
         SimultaneousGesture(
             MagnificationGesture()
                 .updating($magnification) { value, state, _ in state = value }
-                .onEnded { value in store.canvasScale = min(max(store.canvasScale * value, 0.35), 4.0) },
+                .onEnded { value in store.canvasScale = min(max(store.canvasScale * value, minCanvasScale), maxCanvasScale) },
             SimultaneousGesture(
                 DragGesture(minimumDistance: 8).updating($dragOffset) { value, state, _ in state = value.translation }
                     .onEnded { value in

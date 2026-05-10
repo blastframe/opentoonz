@@ -473,7 +473,7 @@ public struct VectorDocument: Identifiable, Codable, Hashable, Sendable {
             let stroke = layers[layerIndex].frames[frameIndex].strokes[strokeIndex]
             for pointIndex in stroke.points.indices {
                 let distance = stroke.points[pointIndex].distance(to: point)
-                if distance <= radius, best == nil || distance < best!.distance {
+                if distance <= radius, best.map({ distance < $0.distance }) ?? true {
                     best = (strokeIndex, pointIndex, distance)
                 }
             }
